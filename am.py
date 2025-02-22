@@ -1,6 +1,11 @@
 import numpy as np
 from skimage import io, color, transform
 import os
+import warnings
+from PIL import Image
+
+# Suppress the specific UserWarning about palette images
+warnings.filterwarnings("ignore", category=UserWarning, message="Palette images with Transparency.*")
 
 # Constants
 IMAGE_SIZE = (8, 8)  # Target size for the image (8x8)
@@ -75,12 +80,22 @@ def preprocess_image(image_path):
         raise ValueError("File path must be a string.")
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"File not found: {image_path}")
-    # Rest of the preprocessing code
+
     try:
+        # Load the image using skimage
         image = io.imread(image_path)
-        image_resized = transform.resize(image, IMAGE_SIZE, anti_aliasing=True)
-        image_gray = color.rgb2gray(image_resized)
-        return image_gray
+
+        # If the image has an alpha channel (RGBA), remove it
+        if image.shape[-1] == 4:  # Check if the image has 4 channels (RGBA)
+            image = color.rgba2rgb(image)  # Convert RGBA to RGB
+
+        # Convert the image to grayscale
+        image_gray = color.rgb2gray(image)
+
+        # Resize the image to the target size
+        image_resized = transform.resize(image_gray, IMAGE_SIZE, anti_aliasing=True)
+
+        return image_resized
     except Exception as e:
         raise ValueError(f"Error processing image: {e}")
 
