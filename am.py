@@ -93,7 +93,7 @@ def preprocess_image(image_path):
         image_gray = color.rgb2gray(image)
 
         # Resize the image to the target size
-        image_resized = transform.resize(image_gray, IMAGE_SIZE, anti_aliasing=True)
+        image_resized = transform.resize(image_gray, IMAGE_SIZE, anti_aliasing=0)
 
         return image_resized
     except Exception as e:
@@ -110,10 +110,12 @@ def convert_to_binary(image):
 
 def display_binary_grid(binary_matrix):
     """
-    Display the binary matrix in an 8x8 grid, ensuring integer output.
+    Display the binary matrix in an 8x8 grid, using white and black squares.
     """
     for row in binary_matrix:
-        print(" ".join(f"{int(x):2d}" for x in row))  # Format as integers
+        # Map 1 to a white square (□) and -1 to a black square (■)
+        row_str = " ".join("□" if x == 1 else "■" for x in row)
+        print(row_str)
 
 def compare_images(binary_matrix1, binary_matrix2):
     """
@@ -132,10 +134,10 @@ def compare_images(binary_matrix1, binary_matrix2):
     hamming_distance = np.sum(flat1 != flat2) / len(flat1)
     return hamming_distance
 
-def store_pattern(image_path, name):
+def store_pattern(image_path, name, am):
     """
     Preprocess an image, convert it to binary, and store it in the pattern dictionary with a custom name.
-    Save the pattern to a text file.
+    Save the pattern to a text file and update the weight matrix.
     """
     print(f"Debug: Input file path: {image_path}")  # Debug statement
 
@@ -161,6 +163,11 @@ def store_pattern(image_path, name):
             for row in binary_matrix:
                 file.write(" ".join(map(str, row)) + "\n")
         print(f"Pattern '{name}' saved to '{file_path}'.")
+
+        # Update the weight matrix with the new pattern
+        patterns = list(PATTERN_STORE.values())
+        am.store_multiple_patterns(patterns)
+        print("Weight matrix updated with the new pattern.")
     except Exception as e:
         print(f"Error storing pattern: {e}")
 
@@ -233,7 +240,7 @@ def recognize_pattern(image_path, am):
     except Exception as e:
         print(f"Error recognizing pattern: {e}")
 
-def recover_noisy_pattern(image_path, am, noise_level=0.3):
+def recover_noisy_pattern(image_path, am, noise_level=0.5):
     """
     Recover a noisy pattern using the associative memory.
     """
