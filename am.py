@@ -137,21 +137,17 @@ def compare_images(binary_matrix1, binary_matrix2):
 def store_pattern(image_path, name, am):
     """
     Preprocess an image, convert it to binary, and store it in the pattern dictionary with a custom name.
+    If a pattern with the same name already exists, it will be replaced.
     Save the pattern to a text file and update the weight matrix.
     """
     print(f"Debug: Input file path: {image_path}")  # Debug statement
-
-    # Check if a pattern with the same name already exists
-    if name in PATTERN_STORE:
-        print(f"Error: A pattern with the name '{name}' already exists. Please use a different name.")
-        return  # Skip storing the pattern
 
     try:
         # Preprocess the image and convert it to a binary matrix
         image = preprocess_image(image_path)
         binary_matrix = convert_to_binary(image)
 
-        # Store the pattern in the dictionary
+        # Store or replace the pattern in the dictionary
         PATTERN_STORE[name] = binary_matrix
         print(f"Pattern '{name}' stored successfully.")
 
@@ -164,13 +160,14 @@ def store_pattern(image_path, name, am):
                 file.write(" ".join(map(str, row)) + "\n")
         print(f"Pattern '{name}' saved to '{file_path}'.")
 
-        # Update the weight matrix with the new pattern
+        # Update the weight matrix with all patterns
         patterns = list(PATTERN_STORE.values())
         am.store_multiple_patterns(patterns)
         print("Weight matrix updated with the new pattern.")
     except Exception as e:
         print(f"Error storing pattern: {e}")
 
+        
 def load_all_patterns_from_files(am):
     """
     Load all patterns from text files in the patterns directory and compute the weight matrix.
