@@ -4,22 +4,20 @@ import os
 import warnings
 from PIL import Image
 
-# Suppress the specific UserWarning about palette images
-warnings.filterwarnings("ignore", category=UserWarning, message="Palette images with Transparency.*")
+# Suppress warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 
 # Constants
-IMAGE_SIZE = (8, 8)  # Target size for the image (8x8)
-PATTERN_STORE = {}   # Dictionary to store patterns with custom names
-PATTERNS_DIR = "patterns"  # Directory to store pattern text files
+IMAGE_SIZE = (32, 32)  # 32x32 patterns for better digit recognition
+PATTERN_STORE = {}      # Global dictionary for patterns
+PATTERNS_DIR = "patterns"
 
 class AssociativeMemory:
     def __init__(self, N):
-        """
-        Initialize the associative memory with size N.
-        """
-        self.N = N  # Size of the patterns
-        self.W = np.zeros((N, N))  # Weight matrix
-        self.theta = np.zeros(N)   # Threshold vector
+        self.N = N
+        self.W = np.zeros((N, N))
+        self.theta = np.zeros(N)
+        self.patterns = []
 
     def store_single_pattern(self, P):
         """
@@ -46,76 +44,52 @@ class AssociativeMemory:
                         self.W[i, j] += (2 * P[i] - 1) * (2 * P[j] - 1)
         self.W /= self.N  # Normalize by N
 
-    def recover_pattern(self, X, max_iter=10):
-        """
-        Recover a pattern from a noisy input X using the weight matrix.
-        """
-        X = np.array(X).flatten()  # Flatten the input pattern
+    def recover_pattern(self, X, max_iter=50, noise_tolerance=0.1):
+        X = np.array(X).flatten()
         S = X.copy()
+        
         for _ in range(max_iter):
-            U = np.dot(self.W, S) - self.theta
-            S_new = np.sign(U)
-            if np.array_equal(S_new, S):  # Convergence check
+            update_order = np.random.permutation(self.N)
+            changed = False
+            
+            for i in update_order:
+                U = np.dot(self.W[i,:], S) - self.theta[i]
+                new_val = 1 if U > 0 else -1
+                
+                if abs(new_val - S[i]) > noise_tolerance:
+                    S[i] = new_val
+                    changed = True
+            
+            if not changed:
                 break
-            S = S_new
+                
         return S
 
     def add_noise(self, pattern, noise_level):
-        """
-        Add noise to a pattern by flipping a fraction of its bits.
-        """
-        noisy_pattern = pattern.copy().flatten()  # Flatten the pattern
-        num_flips = int(noise_level * self.N)
+        noisy_pattern = pattern.copy().flatten()
+        num_flips = min(int(noise_level * self.N), self.N)
         flip_indices = np.random.choice(self.N, num_flips, replace=False)
-        noisy_pattern[flip_indices] = 1 - noisy_pattern[flip_indices]  # Flip between 0 and 1
+        noisy_pattern[flip_indices] = -noisy_pattern[flip_indices]
         return noisy_pattern
 
-
 def preprocess_image(image_path):
-    """
-    Load an image, resize to 8x8, and convert to grayscale.
-    """
-    # Ensure the path is a string and exists
-    if not isinstance(image_path, str):
-        raise ValueError("File path must be a string.")
-    if not os.path.exists(image_path):
-        raise FileNotFoundError(f"File not found: {image_path}")
-
+    if not isinstance(image_path, str) or not os.path.exists(image_path):
+        raise ValueError("Invalid file path")
+    
     try:
-        # Load the image using skimage
         image = io.imread(image_path)
-
-        # If the image has an alpha channel (RGBA), remove it
-        if image.shape[-1] == 4:  # Check if the image has 4 channels (RGBA)
-            image = color.rgba2rgb(image)  # Convert RGBA to RGB
-
-        # Convert the image to grayscale
+        if image.shape[-1] == 4:
+            image = color.rgba2rgb(image)
         image_gray = color.rgb2gray(image)
-
-        # Resize the image to the target size
-        image_resized = transform.resize(image_gray, IMAGE_SIZE, anti_aliasing=0)
-
-        return image_resized
+        return transform.resize(image_gray, IMAGE_SIZE, order=0, anti_aliasing=False, preserve_range=True)
     except Exception as e:
         raise ValueError(f"Error processing image: {e}")
 
 def convert_to_binary(image):
-    """
-    Convert a grayscale image to a binary matrix based on a threshold.
-    """
     threshold = np.mean(image)  # Compute the threshold
     binary_matrix = (image > threshold).astype(int)  # Convert to binary
     binary_matrix[binary_matrix == 0] = -1  # Convert 0s to -1s for associative memory
     return binary_matrix
-
-def display_binary_grid(binary_matrix):
-    """
-    Display the binary matrix in an 8x8 grid, using white and black squares.
-    """
-    for row in binary_matrix:
-        # Map 1 to a white square (□) and -1 to a black square (■)
-        row_str = " ".join("□" if x == 1 else "■" for x in row)
-        print(row_str)
 
 def compare_images(binary_matrix1, binary_matrix2):
     """
@@ -134,108 +108,73 @@ def compare_images(binary_matrix1, binary_matrix2):
     hamming_distance = np.sum(flat1 != flat2) / len(flat1)
     return hamming_distance
 
-def store_pattern(image_path, name, am):
-    """
-    Preprocess an image, convert it to binary, and store it in the pattern dictionary with a custom name.
-    If a pattern with the same name already exists, it will be replaced.
-    Save the pattern to a text file and update the weight matrix.
-    """
-    print(f"Debug: Input file path: {image_path}")  # Debug statement
+def display_binary_grid(binary_matrix):
+    """Display condensed 32x32 grid (showing every 4th pixel)"""
+    for i in range(0, 32, 4):
+        row = binary_matrix[i]
+        print(" ".join("□" if x == 1 else "■" for x in row[::4]))
 
+def store_pattern(image_path, name, am):
     try:
-        # Preprocess the image and convert it to a binary matrix
         image = preprocess_image(image_path)
         binary_matrix = convert_to_binary(image)
-
-        # Store or replace the pattern in the dictionary
+        
         PATTERN_STORE[name] = binary_matrix
         print(f"Pattern '{name}' stored successfully.")
-
-        # Save the pattern to a text file
+        
         if not os.path.exists(PATTERNS_DIR):
-            os.makedirs(PATTERNS_DIR)  # Create the directory if it doesn't exist
-        file_path = os.path.join(PATTERNS_DIR, f"{name}.txt")
-        with open(file_path, "w") as file:
-            for row in binary_matrix:
-                file.write(" ".join(map(str, row)) + "\n")
-        print(f"Pattern '{name}' saved to '{file_path}'.")
-
-        # Update the weight matrix with all patterns
+            os.makedirs(PATTERNS_DIR)
+        np.savetxt(os.path.join(PATTERNS_DIR, f"{name}.txt"), binary_matrix, fmt='%d')
+        
         patterns = list(PATTERN_STORE.values())
         am.store_multiple_patterns(patterns)
-        print("Weight matrix updated with the new pattern.")
+        print(f"Total patterns stored: {len(patterns)}")
     except Exception as e:
         print(f"Error storing pattern: {e}")
 
-        
 def load_all_patterns_from_files(am):
-    """
-    Load all patterns from text files in the patterns directory and compute the weight matrix.
-    """
     if not os.path.exists(PATTERNS_DIR):
-        print(f"Error: Directory '{PATTERNS_DIR}' does not exist.")
+        print(f"Directory '{PATTERNS_DIR}' does not exist.")
         return
-
-    # Clear the existing patterns
+    
+    global PATTERN_STORE
     PATTERN_STORE.clear()
-
-    # Load patterns from text files
+    
     for file_name in os.listdir(PATTERNS_DIR):
         if file_name.endswith(".txt"):
-            file_path = os.path.join(PATTERNS_DIR, file_name)
-            name = os.path.splitext(file_name)[0]  # Extract the pattern name from the file name
             try:
-                # Read the binary matrix from the text file
-                with open(file_path, "r") as file:
-                    lines = file.readlines()
-                    binary_matrix = []
-                    for line in lines:
-                        row = list(map(int, line.strip().split()))
-                        binary_matrix.append(row)
-                    binary_matrix = np.array(binary_matrix)
-
-                # Store the pattern in the dictionary
+                binary_matrix = np.loadtxt(os.path.join(PATTERNS_DIR, file_name))
+                name = os.path.splitext(file_name)[0]
                 PATTERN_STORE[name] = binary_matrix
-                print(f"Pattern '{name}' loaded from '{file_path}'.")
+                print(f"Loaded pattern '{name}'")
             except Exception as e:
-                print(f"Error loading pattern from file '{file_path}': {e}")
-
-    # Compute the weight matrix for the associative memory
+                print(f"Error loading {file_name}: {e}")
+    
     if PATTERN_STORE:
-        patterns = list(PATTERN_STORE.values())
-        am.store_multiple_patterns(patterns)
-        print("Weight matrix computed from loaded patterns.")
+        am.store_multiple_patterns(list(PATTERN_STORE.values()))
 
 def recognize_pattern(image_path, am):
-    """
-    Recognize a pattern by comparing the input image with stored patterns.
-    Output the best-matched pattern.
-    """
     try:
-        # Preprocess the input image
         image = preprocess_image(image_path)
         binary_matrix = convert_to_binary(image)
-
-        # Compare with stored patterns
-        similarities = {}
+        
+        best_match = None
+        min_distance = float('inf')
+        
         for name, pattern in PATTERN_STORE.items():
-            hamming_distance = compare_images(binary_matrix, pattern)
-            similarities[name] = hamming_distance
-
-        # Find the closest match
-        if similarities:
-            best_match = min(similarities, key=similarities.get)
-            best_distance = similarities[best_match]
-            print(f"Best match: '{best_match}' with Hamming Distance: {best_distance:.2%}")
-
-            # Output the recognized pattern
-            recognized_pattern = PATTERN_STORE[best_match]
-            print("\nRecognized Pattern:")
-            display_binary_grid(recognized_pattern)
+            distance = np.mean(binary_matrix != pattern)
+            if distance < min_distance:
+                min_distance = distance
+                best_match = name
+        
+        if best_match:
+            print(f"\nBest match: '{best_match}' (Difference: {min_distance:.1%})")
+            print("Stored pattern:")
+            display_binary_grid(PATTERN_STORE[best_match])
         else:
-            print("No patterns stored for recognition.")
+            print("No patterns available for recognition")
     except Exception as e:
-        print(f"Error recognizing pattern: {e}")
+        print(f"Recognition error: {e}")
 
 def recover_noisy_pattern(image_path, am, noise_level=0.5):
     """
@@ -269,46 +208,47 @@ def recover_noisy_pattern(image_path, am, noise_level=0.5):
         print(f"Error recovering noisy pattern: {e}")
 
 def main():
-    am = AssociativeMemory(IMAGE_SIZE[0] * IMAGE_SIZE[1])  # Initialize associative memory
-
-    # Load all patterns from text files at the start
+    global PATTERN_STORE  # Declare global at function start
+    
+    am = AssociativeMemory(IMAGE_SIZE[0] * IMAGE_SIZE[1])
     load_all_patterns_from_files(am)
-
+    
+    # Limit to 15 patterns for stability
+    MAX_PATTERNS = 15
+    if len(PATTERN_STORE) > MAX_PATTERNS:
+        print(f"Keeping first {MAX_PATTERNS} patterns for stability")
+        PATTERN_STORE = dict(list(PATTERN_STORE.items())[:MAX_PATTERNS])
+        am.store_multiple_patterns(list(PATTERN_STORE.values()))
+    
     while True:
         print("\nMenu:")
         print("1. Store a pattern")
         print("2. Recognize a pattern")
         print("3. Recover a noisy pattern")
         print("4. Exit")
-        choice = input("Enter your choice: ").strip()
-
+        
+        choice = input("Enter choice (1-4): ").strip()
+        
         if choice == "1":
-            image_path = input("Enter the path to the image file: ").strip()
-            if not os.path.exists(image_path):
-                print(f"Error: File '{image_path}' does not exist.")
-                continue
-            name = input("Enter a custom name for this pattern: ").strip()
-            store_pattern(image_path, name)
-            # Update the weight matrix after storing a new pattern
-            patterns = list(PATTERN_STORE.values())
-            am.store_multiple_patterns(patterns)
+            image_path = input("Image path: ").strip()
+            if os.path.exists(image_path):
+                name = input("Pattern name: ").strip()
+                store_pattern(image_path, name, am)
+            else:
+                print("File not found")
         elif choice == "2":
-            image_path = input("Enter the path to the image file for recognition: ").strip()
-            if not os.path.exists(image_path):
-                print(f"Error: File '{image_path}' does not exist.")
-                continue
-            recognize_pattern(image_path, am)
+            image_path = input("Image to recognize: ").strip()
+            if os.path.exists(image_path):
+                recognize_pattern(image_path, am)
         elif choice == "3":
-            image_path = input("Enter the path to the image file for recovery: ").strip()
-            if not os.path.exists(image_path):
-                print(f"Error: File '{image_path}' does not exist.")
-                continue
-            recover_noisy_pattern(image_path, am, noise_level=0.2)
+            image_path = input("Image to recover: ").strip()
+            if os.path.exists(image_path):
+                recover_noisy_pattern(image_path, am, 0.1)
         elif choice == "4":
-            print("Exiting...")
+            print("Exiting program")
             break
         else:
-            print("Invalid choice. Please try again.")
+            print("Invalid choice, please enter 1-4")
 
 if __name__ == "__main__":
     main()
