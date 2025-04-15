@@ -95,7 +95,7 @@ class HopfieldNetwork:
 def preprocess_image(image_path, size=IMAGE_SIZE):
     """Load, resize, binarize and flatten an image."""
     img = Image.open(image_path).convert('L')  # Convert to grayscale
-    img = img.resize(size)
+    img = img.resize(size, Image.NEAREST)
     img_array = np.array(img)
     binary_img = binarize(img_array.reshape(1, -1), threshold=127).reshape(size) # Reshape to 2D
     return binary_img * 2 - 1  # Convert to -1, 1 values
@@ -140,7 +140,7 @@ def store_pattern(image_path, name, am, hn):
         np.savetxt(os.path.join(PATTERNS_DIR, f"{name}.txt"), binary_matrix, fmt='%d')
 
         patterns = list(PATTERN_STORE.values())
-        am.store_multiple_patterns(patterns)
+        am.store_multiple_patterns([(p * 2 - 1).flatten() for p in patterns])
         hn.store_multiple_patterns(patterns) # Store in Hopfield using multiple patterns
         print(f"Total patterns stored: {len(patterns)}")
     except Exception as e:
@@ -161,7 +161,7 @@ def load_all_patterns_from_files(am, hn):
                 binary_matrix = np.loadtxt(os.path.join(PATTERNS_DIR, file_name)).astype(int)
                 name = os.path.splitext(file_name)[0]
                 PATTERN_STORE[name] = binary_matrix
-                print(f"Loaded pattern '{name}'")
+                print(f"Loaded pattern '{name}' from file.")
             except Exception as e:
                 print(f"Error loading {file_name}: {e}")
 
@@ -205,82 +205,161 @@ def recognize_pattern(image_path, am):
         print(f"Error recognizing pattern: {e}")
 
 def recover_noisy_pattern_am(image_path, am, noise_level):
-    """Recover a noisy pattern from an image using Associative Memory."""
+    """Recover a noisy pattern from an image using Associative Memory and display."""
     try:
         original_image = preprocess_image(image_path)
         original_binary = convert_to_binary(original_image)
         original_pattern = (original_binary * 2 - 1).flatten()
         noisy_pattern = add_noise(original_pattern, noise_level)
-
-        print("\nOriginal Pattern (Condensed):")
-        display_binary_grid(original_binary)
-
         noisy_binary = np.where(noisy_pattern == 1, 1, 0).reshape(IMAGE_SIZE)
-        print(f"\nNoisy Pattern (Condensed, {noise_level*100:.0f}% noise):")
-        display_binary_grid(noisy_binary)
-
         recalled_am = am.recall(noisy_pattern)
         recalled_am_binary = np.where(recalled_am == 1, 1, 0).reshape(IMAGE_SIZE)
-        print("\nRecovered Pattern (Condensed from AM):")
-        display_binary_grid(recalled_am_binary)
         accuracy_am = np.mean(recalled_am_binary == original_binary)
-        print(f"Recovery Accuracy (AM): {accuracy_am:.2f}")
+
+        plt.figure(figsize=(10, 5))
+
+        plt.subplot(1, 3, 1)
+        plt.imshow(original_binary, cmap='binary')
+        plt.title('Original Pattern')
+        plt.axis('off')
+
+        plt.subplot(1, 3, 2)
+        plt.imshow(noisy_binary, cmap='binary')
+        plt.title(f'Noisy Pattern ({noise_level*100:.0f}% noise)')
+        plt.axis('off')
+
+        plt.subplot(1, 3, 3)
+        plt.imshow(recalled_am_binary, cmap='binary')
+        plt.title(f'Recovered (AM)\nAccuracy: {accuracy_am:.2f}')
+        plt.axis('off')
+
+        plt.tight_layout()
+
+        base_name = os.path.splitext(os.path.basename(image_path))[0]
+        filename = f"noise{noise_level:.2f}_am_{base_name}.png"
+        plt.savefig(filename)
+        plt.show()
+        plt.close()
+
+        return accuracy_am
 
     except FileNotFoundError:
         print(f"Error: Image file not found at '{image_path}'.")
+        return None
     except Exception as e:
         print(f"Error recovering noisy pattern (AM): {e}")
+        return None
 
 def recover_noisy_pattern_hopfield(image_path, hn, noise_level):
-    """Recover a noisy pattern from an image using Hopfield Network."""
+    """Recover a noisy pattern from an image using Hopfield Network and display."""
     try:
         original_image = preprocess_image(image_path)
         original_binary = convert_to_binary(original_image)
         original_pattern = (original_binary * 2 - 1).flatten()
         noisy_pattern = add_noise(original_pattern, noise_level)
-
-        print("\nOriginal Pattern (Condensed):")
-        display_binary_grid(original_binary)
-
         noisy_binary = np.where(noisy_pattern == 1, 1, 0).reshape(IMAGE_SIZE)
-        print(f"\nNoisy Pattern (Condensed, {noise_level*100:.0f}% noise):")
-        display_binary_grid(noisy_binary)
-
         recalled_hn = hn.recall(noisy_pattern)
         recalled_hn_binary = np.where(recalled_hn == 1, 1, 0).reshape(IMAGE_SIZE)
-        print("\nRecovered Pattern (Condensed from HN):")
-        display_binary_grid(recalled_hn_binary)
         accuracy_hn = np.mean(recalled_hn_binary == original_binary)
-        print(f"Recovery Accuracy (HN): {accuracy_hn:.2f}")
+
+        plt.figure(figsize=(10, 5))
+
+        plt.subplot(1, 3, 1)
+        plt.imshow(original_binary, cmap='binary')
+        plt.title('Original Pattern')
+        plt.axis('off')
+
+        plt.subplot(1, 3, 2)
+        plt.imshow(noisy_binary, cmap='binary')
+        plt.title(f'Noisy Pattern ({noise_level*100:.0f}% noise)')
+        plt.axis('off')
+
+        plt.subplot(1, 3, 3)
+        plt.imshow(recalled_hn_binary, cmap='binary')
+        plt.title(f'Recovered (HN)\nAccuracy: {accuracy_hn:.2f}')
+        plt.axis('off')
+
+        plt.tight_layout()
+
+        base_name = os.path.splitext(os.path.basename(image_path))[0]
+        filename = f"noise{noise_level:.2f}_hn_{base_name}.png"
+        plt.savefig(filename)
+        plt.show()
+
+        plt.close()
+
+        return accuracy_hn
 
     except FileNotFoundError:
         print(f"Error: Image file not found at '{image_path}'.")
+        return None
     except Exception as e:
         print(f"Error recovering noisy pattern (Hopfield): {e}")
+        return None
 
-def load_all_patterns_from_files(am, hn):
-    """Load patterns from the patterns directory into both memories."""
-    if not os.path.exists(PATTERNS_DIR):
-        print(f"Directory '{PATTERNS_DIR}' does not exist.")
+def recover_all_noisy_patterns(noise_level, am, hn, restore_iterations=1):
+    """Recovers all stored patterns with added noise, restores multiple times,
+    calculates average accuracy, and then compares results."""
+    if not PATTERN_STORE:
+        print("No patterns stored to recover.")
         return
 
-    global PATTERN_STORE
-    PATTERN_STORE.clear()
+    am_avg_accuracies = {}
+    hn_avg_accuracies = {}
 
-    for file_name in os.listdir(PATTERNS_DIR):
-        if file_name.endswith(".txt"):
-            try:
-                binary_matrix = np.loadtxt(os.path.join(PATTERNS_DIR, file_name)).astype(int)
-                name = os.path.splitext(file_name)[0]
-                PATTERN_STORE[name] = binary_matrix
-                print(f"Loaded pattern '{name}'")
-            except Exception as e:
-                print(f"Error loading {file_name}: {e}")
+    print(f"\nRecovering all patterns with noise level: {noise_level:.2f}")
+    print(f"Restoring each noisy pattern {restore_iterations} times and averaging accuracy.")
 
-    if PATTERN_STORE:
-        patterns_for_am = [(p * 2 - 1).flatten() for p in PATTERN_STORE.values()]
-        am.store_multiple_patterns(patterns_for_am)
-        hn.store_multiple_patterns(list(PATTERN_STORE.values()))
+    for name, original_binary in PATTERN_STORE.items():
+        original_pattern = (original_binary * 2 - 1).flatten()
+        am_accuracies_per_pattern = []
+        hn_accuracies_per_pattern = []
+
+        for _ in range(restore_iterations):
+            noisy_pattern = add_noise(original_pattern, noise_level)
+
+            # Recover with Associative Memory
+            recalled_am = am.recall(noisy_pattern)
+            recalled_am_binary = np.where(recalled_am == 1, 1, 0).reshape(IMAGE_SIZE)
+            accuracy_am = np.mean(recalled_am_binary == original_binary)
+            am_accuracies_per_pattern.append(accuracy_am)
+
+            # Recover with Hopfield Network
+            noisy_pattern_hn = noisy_pattern.copy() # Important to use a copy for HN recall
+            recalled_hn_flattened = hn.recall(noisy_pattern_hn)
+            recalled_hn_binary = np.where(recalled_hn_flattened == 1, 1, 0).reshape(IMAGE_SIZE)
+            accuracy_hn = np.mean(recalled_hn_binary == original_binary)
+            hn_accuracies_per_pattern.append(accuracy_hn)
+
+        am_avg_accuracies[name] = np.mean(am_accuracies_per_pattern)
+        hn_avg_accuracies[name] = np.mean(hn_accuracies_per_pattern)
+        print(f"  Average AM Recovery Accuracy for '{name}': {am_avg_accuracies[name]:.2f}")
+        print(f"  Average HN Recovery Accuracy for '{name}': {hn_avg_accuracies[name]:.2f}")
+
+    # Plotting the results
+    pattern_names = list(PATTERN_STORE.keys())
+    am_avg_acc_values = list(am_avg_accuracies.values())
+    hn_avg_acc_values = list(hn_avg_accuracies.values())
+
+    x = np.arange(len(pattern_names))
+    width = 0.35
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    rects1 = ax.bar(x - width/2, am_avg_acc_values, width, label='Associative Memory')
+    rects2 = ax.bar(x + width/2, hn_avg_acc_values, width, label='Hopfield Network')
+
+    ax.set_ylabel('Average Recovery Accuracy')
+    ax.set_xlabel('Pattern')
+    ax.set_title(f'Average Recovery Accuracy at Noise Level {noise_level:.2f} (averaged over {restore_iterations} restorations)')
+    ax.set_xticks(x)
+    ax.set_xticklabels(pattern_names, rotation=45, ha="right")
+    ax.legend()
+    fig.tight_layout()
+    filename = f"noise{noise_level:.2f}_restore{restore_iterations}_all.png"
+    plt.savefig(filename)
+    plt.show()
+
+    plt.close()
 
 def convert_images_to_patterns():
     """Converts images in the input_images folder to patterns and saves them."""
@@ -301,17 +380,20 @@ def convert_images_to_patterns():
     for image_file in image_files:
         image_path = os.path.join(INPUT_IMAGES_DIR, image_file)
         name = os.path.splitext(image_file)[0]
-        try:
-            image = preprocess_image(image_path)
-            binary_matrix = convert_to_binary(image)
-            PATTERN_STORE[name] = binary_matrix
-            np.savetxt(os.path.join(PATTERNS_DIR, f"{name}.txt"), binary_matrix, fmt='%d')
-            print(f"  Converted '{image_file}' to pattern '{name}'.txt")
-        except Exception as e:
-            print(f"  Error converting '{image_file}': {e}")
+        pattern_file = os.path.join(PATTERNS_DIR, f"{name}.txt")
+        if not os.path.exists(pattern_file):
+            try:
+                image = preprocess_image(image_path)
+                binary_matrix = convert_to_binary(image)
+                PATTERN_STORE[name] = binary_matrix
+                np.savetxt(pattern_file, binary_matrix, fmt='%d')
+                print(f"  Converted '{image_file}' to pattern '{name}'.txt")
+            except Exception as e:
+                print(f"  Error converting '{image_file}': {e}")
+        else:
+            print(f"  Pattern '{name}.txt' already exists. Skipping conversion.")
 
 if __name__ == "__main__":
-
     am = AssociativeMemory(IMAGE_SIZE[0] * IMAGE_SIZE[1])
     hn = HopfieldNetwork(IMAGE_SIZE[0] * IMAGE_SIZE[1])
 
@@ -320,6 +402,10 @@ if __name__ == "__main__":
         os.makedirs(PATTERNS_DIR)
         print(f"Created directory '{PATTERNS_DIR}' for storing patterns.")
 
+    # Auto load images to patterns on startup (without overwriting existing)
+    convert_images_to_patterns()
+
+    # Load all patterns from files
     load_all_patterns_from_files(am, hn)
 
     # Limit to 15 patterns for stability
@@ -338,9 +424,10 @@ if __name__ == "__main__":
         print("2. Recognize a pattern (Associative Memory)")
         print("3. Recover a noisy pattern (Associative Memory)")
         print("4. Recover a noisy pattern (Hopfield Network)")
-        print("5. Exit")
+        print("5. Recover all noisy patterns and compare")
+        print("6. Exit")
 
-        choice = input("Enter choice (1-5): ").strip()
+        choice = input("Enter choice (1-6): ").strip()
 
         if choice == "1":
             image_path = input("Image path to store: ").strip()
@@ -370,7 +457,11 @@ if __name__ == "__main__":
             else:
                 print("File not found")
         elif choice == "5":
+            noise_level_all = float(input("Enter noise level (0.0-1.0) for recovery comparison: ").strip())
+            iteration = int(input("Enter how many recovery should be made to calculate average: ").strip())
+            recover_all_noisy_patterns(noise_level_all, am, hn, iteration)
+        elif choice == "6":
             print("Exiting program")
             break
         else:
-            print("Invalid choice, please enter 1-5")
+            print("Invalid choice, please enter 1-6")
