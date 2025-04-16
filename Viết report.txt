@@ -1,0 +1,15 @@
+Viết report
+Mức noise khác nhau: 5%, 10%, 20%, 30%, 40%...
+Độ chính xác
+
+viết ra những phục hồi sai, lý do vì sao nó sai
+(sai vì phân bố 0, 1 quá ngẫu nhiên...)
+nếu phân bố ngẫu nhiên quá
+
+phục hồi (recall) so sánh giữa
+lặp đến khi ko thay đổi
+lặp một lần
+
+so sánh giữa
+
+Nếu sai thì thường sai chỗ nào
