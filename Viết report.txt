@@ -3,13 +3,10 @@ Mức noise khác nhau: 5%, 10%, 20%, 30%, 40%...
 Độ chính xác
 
 viết ra những phục hồi sai, lý do vì sao nó sai
-(sai vì phân bố 0, 1 quá ngẫu nhiên...)
-nếu phân bố ngẫu nhiên quá
+(tìm lý do như là sai vì phân bố 0, 1 quá ngẫu nhiên hay thế nào đó...)
 
-phục hồi (recall) so sánh giữa
+phục hồi (recall) so sánh giữa:
 lặp đến khi ko thay đổi
 lặp một lần
 
-so sánh giữa
-
-Nếu sai thì thường sai chỗ nào
+Nếu sai thì thường sai ở những chỗ nào
