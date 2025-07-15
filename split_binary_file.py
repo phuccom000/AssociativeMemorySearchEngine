@@ -38,6 +38,6 @@ def split_wav_to_txt(input_file_path, output_base_dir):
             print(f"Created: {output_path}")
 
 # Example usage:
-input_file = "processed_embeddings_gray_code.txt"  # Replace with your input file path
-output_base_directory = "patterns"  # Replace with your desired base output directory
+input_file = "processed_embeddings_gray_code_dec8.txt"  # Replace with your input file path
+output_base_directory = "patterns voice npy"  # Replace with your desired base output directory
 split_wav_to_txt(input_file, output_base_directory)

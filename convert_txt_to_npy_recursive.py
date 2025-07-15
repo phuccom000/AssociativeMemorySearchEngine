@@ -1,7 +1,7 @@
 import os
 import numpy as np
 
-def convert_txt_to_npy_recursive(input_dir='patterns', output_dir='patterns_npy'):
+def convert_txt_to_npy_recursive(input_dir='patterns_from_images', output_dir='patterns_npy'):
     for root, _, files in os.walk(input_dir):
         for file in files:
             if not file.endswith(".txt"):
@@ -26,8 +26,11 @@ def convert_txt_to_npy_recursive(input_dir='patterns', output_dir='patterns_npy'
                         else:
                             raise ValueError("Invalid characters in single-line binary.")
 
+                # Flatten the array before saving
+                data = data.flatten()
+
                 np.save(npy_path, data)
-                print(f"Converted {txt_path} -> {npy_path}")
+                print(f"Converted {txt_path} -> {npy_path} ({data.size} elements)")
 
             except Exception as e:
                 print(f"Failed to convert {txt_path}: {e}")
