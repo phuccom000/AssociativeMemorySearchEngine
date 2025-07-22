@@ -3,6 +3,7 @@ import os
 import warnings
 import sys
 import matplotlib.pyplot as plt
+import math
 
 sys.set_int_max_str_digits(10000)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -14,20 +15,27 @@ pattern_shape = None  # Inferred dynamically from the first loaded pattern
 PATTERN_CACHE_FILE = "pattern_cache.npz"
 DOWNSAMPLED_DIR = "patterns_downsampled"
 NPY_CONVERTED_DIR = "patterns_npy"
-DOWNSAMPLE_THRESHOLD = 1025  # Only downsample if pattern size exceeds this
-DOWNSAMPLE_FACTOR = 10        # Reduce size by this factor
+DOWNSAMPLE_THRESHOLD = 2048  # Only downsample if pattern size exceeds this
 
-def downsample_vector(vector, factor=DOWNSAMPLE_FACTOR):
-    length = len(vector)
-    remainder = length % factor
-    if remainder != 0:
-        pad_size = factor - remainder
-        padding = np.zeros(pad_size, dtype=np.int8)
-        vector = np.concatenate([vector, padding])
-        print(f"    ↳ Padded with {pad_size} zeros to length: {len(vector)}")
+import math
 
-    reshaped = vector.reshape(-1, factor)
+def downsample_vector(vector, target_length=DOWNSAMPLE_THRESHOLD):
+    original_length = len(vector)
+    factor = math.ceil(original_length / target_length)
+
+    padded_length = factor * target_length
+    pad_size = padded_length - original_length
+
+    if pad_size > 0:
+        vector = np.concatenate([vector, np.zeros(pad_size, dtype=np.int8)])
+        print(f"    Padded with {pad_size} zeros to length: {len(vector)}")
+
+    reshaped = vector.reshape(target_length, factor)
     pooled = (np.sum(reshaped, axis=1) >= (factor // 2)).astype(np.int8)
+
+    print(f"    Calculated downsample factor: {factor}")
+    print(f"    Downsampled to length: {len(pooled)}")
+
     return pooled
 
 
@@ -152,8 +160,8 @@ def load_all_patterns_from_files(am, hn):
                 binary_matrix = np.load(path).flatten()
                 print(f"  Loaded '{path}' | Original length: {len(binary_matrix)}")
 
-                if binary_matrix.size >= DOWNSAMPLE_THRESHOLD:
-                    binary_matrix = downsample_vector(binary_matrix, factor=DOWNSAMPLE_FACTOR)
+                if binary_matrix.size > DOWNSAMPLE_THRESHOLD:
+                    binary_matrix = downsample_vector(binary_matrix)
                     print(f"    ↳ Downsampled to length: {len(binary_matrix)}")
 
                     rel_path = os.path.relpath(path, PATTERNS_DIR)
@@ -230,8 +238,8 @@ def recall_from_file(path, am, hn, noise_level=0.1):
         if path.endswith(".npy"):
             binary_matrix = np.load(path).flatten()
             print(f"Original vector length: {len(binary_matrix)}")
-            if binary_matrix.size >= DOWNSAMPLE_THRESHOLD:
-                binary_matrix = downsample_vector(binary_matrix, factor=DOWNSAMPLE_FACTOR)
+            if binary_matrix.size > DOWNSAMPLE_THRESHOLD:
+                binary_matrix = downsample_vector(binary_matrix)
                 print(f"Downsampled vector length: {len(binary_matrix)}")
         else:
             with open(path, 'r') as f:
@@ -243,8 +251,8 @@ def recall_from_file(path, am, hn, noise_level=0.1):
 
             binary_matrix = binary_array.flatten()
             print(f"Original vector length: {len(binary_matrix)}")
-            if binary_matrix.size >= DOWNSAMPLE_THRESHOLD:
-                binary_matrix = downsample_vector(binary_matrix, factor=DOWNSAMPLE_FACTOR)
+            if binary_matrix.size > DOWNSAMPLE_THRESHOLD:
+                binary_matrix = downsample_vector(binary_matrix)
                 print(f"Downsampled vector length: {len(binary_matrix)}")
 
         if binary_matrix.size != np.prod(pattern_shape):

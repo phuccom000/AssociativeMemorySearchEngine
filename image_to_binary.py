@@ -7,7 +7,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # Constants
-IMAGE_SIZE = (32, 32)  # Target size for the pattern
+IMAGE_SIZE = (64, 64)  # Target size for the pattern
 default_input_dir = "26alphabetwords"
 default_output_dir = "patterns_from_images"
 
