@@ -2,3 +2,7 @@
 /.venv
 /patterns voice txt
 /patterns voice npy
+/patterns_npy
+/patterns_npy
+pattern_cache.npz
+pattern_cache.npz
