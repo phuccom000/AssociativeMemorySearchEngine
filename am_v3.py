@@ -4,6 +4,8 @@ import warnings
 import sys
 import matplotlib.pyplot as plt
 import math
+import csv
+import os
 
 sys.set_int_max_str_digits(10000)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -296,6 +298,83 @@ def compare_all_patterns(am, hn, noise_level=0.1):
     print("  AM:", ", ".join([f"{n} ({s:.2f})" for n, s in low_am]))
     print("  HN:", ", ".join([f"{n} ({s:.2f})" for n, s in low_hn]))
 
+def export_accuracy_report(am, hn, noise_level=0.1):
+    if not PATTERN_STORE:
+        print("No patterns loaded.")
+        return
+
+    output_file = f"charts/accuracy_report_noise_{int(noise_level * 100)}.csv"
+    os.makedirs("charts", exist_ok=True)
+
+    rows = [("Pattern", "TrueLabel", "AM_Accuracy", "AM_BestMatch", "AM_Correct", "HN_Accuracy", "HN_BestMatch", "HN_Correct")]
+
+    print("\nGenerating accuracy report with noise level:", noise_level)
+    total = len(PATTERN_STORE)
+    correct_am_total = 0
+    correct_hn_total = 0
+
+    for i, (name, original) in enumerate(PATTERN_STORE.items(), 1):
+        true_label = name.split("_")[0]
+
+        noisy = add_noise(original, noise_level)
+        am_out = am.recall(2 * noisy - 1)
+        hn_out = hn.recall(2 * noisy - 1)
+
+        am_bin = (am_out > 0).astype(np.int8)
+        hn_bin = (hn_out > 0).astype(np.int8)
+
+        acc_am = np.mean(am_bin == original)
+        acc_hn = np.mean(hn_bin == original)
+
+        def best_match(recalled):
+            best, score = None, 0
+            for other_name, p in PATTERN_STORE.items():
+                match = np.mean(p == recalled)
+                if match > score:
+                    best, score = other_name, match
+            return best, score
+
+        best_am, _ = best_match(am_bin)
+        best_hn, _ = best_match(hn_bin)
+
+        label_am = best_am.split("_")[0]
+        label_hn = best_hn.split("_")[0]
+
+        correct_am = label_am == true_label
+        correct_hn = label_hn == true_label
+
+        correct_am_total += correct_am
+        correct_hn_total += correct_hn
+
+        rows.append((
+            name, true_label,
+            f"{acc_am:.4f}", best_am, "yes" if correct_am else "no",
+            f"{acc_hn:.4f}", best_hn, "yes" if correct_hn else "no"
+        ))
+
+        # Terminal Output
+        print(f"[{i}/{total}] {name} | AM: {label_am} ({acc_am:.2%}) {'yes' if correct_am else 'no'} | HN: {label_hn} ({acc_hn:.2%}) {'yes' if correct_hn else 'no'}")
+
+    # Final Accuracy Summary
+    acc_am_overall = correct_am_total / total
+    acc_hn_overall = correct_hn_total / total
+
+    print("\n=== Final Accuracy ===")
+    print(f"Associative Memory (AM): {correct_am_total}/{total} correct ({acc_am_overall:.2%})")
+    print(f"Hopfield Network (HN):  {correct_hn_total}/{total} correct ({acc_hn_overall:.2%})")
+
+    # Add summary to CSV
+    rows.append(("", "", "", "", "", "", "", ""))
+    rows.append(("SUMMARY", "Total Patterns", total, "", "", total, "", ""))
+    rows.append(("", "Correct Matches", correct_am_total, "", f"{acc_am_overall:.2%}", correct_hn_total, "", f"{acc_hn_overall:.2%}"))
+
+    with open(output_file, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerows(rows)
+
+    print(f"\n✅ Accuracy report exported to: {output_file}")
+
+
 def main_menu():
     am = AssociativeMemory(0)
     hn = HopfieldNetwork(0)
@@ -306,9 +385,10 @@ def main_menu():
         print("1. Recall from .npy or .txt file")
         print("2. Compare accuracy of all patterns")
         print("3. Clear cache and reload patterns")
-        print("4. Exit")
+        print("4. Export accuracy + match report to CSV")
+        print("5. Exit")
 
-        choice = input("Choose option (1-4): ").strip()
+        choice = input("Choose option (1-5): ").strip()
         if choice == "1":
             path = input("Enter path to input file: ").strip()
             if not os.path.exists(path):
@@ -325,6 +405,9 @@ def main_menu():
                 print("Cache cleared.")
             load_all_patterns_from_files(am, hn)
         elif choice == "4":
+            noise = float(input("Noise level (0.0 - 1.0): "))
+            export_accuracy_report(am, hn, noise)
+        elif choice == "5":
             print("Exiting.")
             break
         else:

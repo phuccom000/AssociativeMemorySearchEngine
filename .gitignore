@@ -6,3 +6,4 @@
 /patterns_npy
 pattern_cache.npz
 pattern_cache.npz
+*.npz
