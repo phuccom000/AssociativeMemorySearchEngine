@@ -1,0 +1,13 @@
+=== HƯỚNG DẪN CÀI ĐẶT ===
+
+1. Cài Python 3.8 hoặc mới hơn từ:
+   https://www.python.org/downloads/
+
+2. Mở Terminal (CMD hoặc PowerShell), chuyển đến thư mục chứa file chương trình.
+
+3. Cài các thư viện cần thiết bằng lệnh:
+
+    pip install -r requirements.txt
+
+4. Tạo thư mục "patterns" và đặt các file mẫu (.txt hoặc .npy) vào bên trong.
+   - File .txt phải chứa chỉ số 0 và 1 (không có ký tự khác).

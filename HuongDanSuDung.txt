@@ -1,0 +1,17 @@
+=== HƯỚNG DẪN SỬ DỤNG ===
+
+1. Chạy chương trình bằng lệnh:
+
+    python <tên_file>.py
+
+2. Chọn chức năng trong menu:
+   1. Nhập file để kiểm tra khả năng nhớ lại (recall)
+   2. So sánh độ chính xác của tất cả mẫu
+   3. Xóa cache và tải lại dữ liệu
+   4. Xuất báo cáo độ chính xác ra file CSV
+   5. Thoát chương trình
+
+3. Kết quả:
+   - Biểu đồ lưu trong thư mục "charts"
+   - Báo cáo CSV lưu cùng thư mục
+   - Cache lưu tại: `pattern_cache.npz`
